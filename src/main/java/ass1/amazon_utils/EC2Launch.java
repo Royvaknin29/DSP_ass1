@@ -1,4 +1,4 @@
-package ass1_.amazon_utils;
+package ass1.amazon_utils;
 
 import java.util.List;
 
