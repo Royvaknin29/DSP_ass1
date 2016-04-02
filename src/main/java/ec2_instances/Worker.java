@@ -6,36 +6,78 @@ import java.util.Properties;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 
+import ass1.amazon_utils.SQSservice;
+
+import com.amazonaws.AmazonClientException;
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.services.sqs.AmazonSQSClient;
+import com.amazonaws.services.sqs.model.Message;
+import com.google.common.collect.Lists;
+
 public class Worker {
-
+	private static String accKey = "AKIAJ7NENWCNH4ZIBIQQ";
+	private static String secKey = "LWce1dJ65wK2ZCMYPTL+vnVLwBPMPh5fvNbxhnOC";
+	private static String MANAGER_TO_WORKER_NAME = "managerToWorker";
+	
     public static void main(String[] args) {
-
-        String job  = getJobFromQueue();
-        String result = preformTweetAnalysis(job);
-        addMessageToQueue(result);
+    	
+    	AWSCredentials credentials = setCredentialsFromArgs(accKey, secKey);
+    	SQSservice mySqsService = new SQSservice(credentials);
+    	AmazonSQSClient sqsClient = new AmazonSQSClient(credentials);
+		String managerToWorkerUrl = sqsClient.getQueueUrl(MANAGER_TO_WORKER_NAME).getQueueUrl();
+		
+		List<String> jobsFromQueue  = getJobsFromQueue(mySqsService, managerToWorkerUrl);
+        List<String> resultAfterAnalysis = preformTweetAnalysis(jobsFromQueue);
+        addMessagesToQueue(resultAfterAnalysis);
 
     }
-
-    public static String getJobFromQueue() {
-        //TODO
-        return "";
+	public static AWSCredentials setCredentialsFromArgs(String accKey,
+			String seckey) {
+		AWSCredentials credentials = null;
+		try {
+			credentials = new BasicAWSCredentials(accKey, seckey);
+		} catch (Exception e) {
+			throw new AmazonClientException(
+					"credentials given fail to log ...", e);
+		}
+		return credentials;
+	}
+    public static List<String> getJobsFromQueue(SQSservice mySqsService, String queueUrl) {
+    	List<String> messagesContents = Lists.newArrayList();
+    	//according to documentation recieveMessages should return 1-10 messages. 
+    	//we need to check if we should limit it or keep allof them.
+    	List<Message> messages = mySqsService.recieveMessages(MANAGER_TO_WORKER_NAME, queueUrl);
+    	for(Message jobMessage: messages){
+    		messagesContents.add(jobMessage.getBody());
+    		System.out.println("job Id" + jobMessage.getMessageId() + " Link:\n"+jobMessage.getBody() + "\nTaken from queue");
+    	}
+    	//Deleteing from Queue:
+    	for(Message jobMessageToDelete: messages){
+    		mySqsService.deleteMessage(jobMessageToDelete, queueUrl);
+    		System.out.println("job Id" + jobMessageToDelete.getMessageId() + "\nDeleted!");
+    	}
+    	return messagesContents;
     }
 
-    public static void addMessageToQueue(String message) {
+    public static void addMessagesToQueue(List<String> messageToAdd) {
         //TODO
     }
 
-    public static String preformTweetAnalysis(String tweetLink) {
-        //TODO
+    public static List<String> preformTweetAnalysis(List<String> tweetLinks) {
+        //TODO Finish Analysis.
+    	List<String> analysedTweets = Lists.newArrayList();
         try {
-            Document doc = Jsoup.connect(tweetLink).get();
+            for(String tweetLink: tweetLinks){
+        	Document doc = Jsoup.connect(tweetLink).get();
             String tweet = doc.select("title").text();
             findSentiment(tweet);
             printEntities(tweet);
+            }
         } catch (IOException e) {
             System.out.println(e);
         }
-        return "";
+        return analysedTweets;
     }
 
     /*** Tweet Analysis ***/

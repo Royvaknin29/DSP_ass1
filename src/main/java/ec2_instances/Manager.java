@@ -43,7 +43,7 @@ public class Manager {
 				localAppToManagerQueueUrl);
 		//get args from localApp
 		try {
-			String inputFileArgs = getInputFileUrl(messages, mySqsService,
+			String inputFileArgs = getInputFileUrlAndDeleteMessage(messages, mySqsService,
 					localAppToManagerQueueUrl);
 			String[] splitArgs = inputFileArgs.split("\\r?\\n");
 			messagesPerWorker = Integer.valueOf(splitArgs[1]);
@@ -79,7 +79,7 @@ public class Manager {
 
 	}
 
-	public static String getInputFileUrl(List<Message> messages,
+	public static String getInputFileUrlAndDeleteMessage(List<Message> messages,
 			SQSservice mySqsService, String queueUrl) throws Exception {
 		String url = null;
 		Message m = null;
