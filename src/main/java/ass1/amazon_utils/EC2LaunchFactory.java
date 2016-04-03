@@ -46,10 +46,18 @@ public class EC2LaunchFactory {
 	}
 
 	public static String generateShellExtractionCommand(Ec2InstanceType type) {
+		if (type.equals(Ec2InstanceType.MANAGER)){
 		return new String(
-				encodeBase64("#!/bin/bash\ncd ~\nwget \"https://s3.amazonaws.com/ass-1-bucket/helloWorldZip.zip\"\nunzip -P `cat ./pass` helloWorldZip\njava -jar helloWorld.jar > log"
+				encodeBase64("#!/bin/bash\ncd ~\nwget \"https://s3.amazonaws.com/jars-roy-aaron/Manager.zip\"\nunzip -P `cat ./pass` Manager\njava -jar Manager.jar > log"
 						.getBytes()));
+		}
+		else{
+			return new String(
+					encodeBase64("#!/bin/bash\ncd ~\nwget \"https://s3.amazonaws.com/jars-roy-aaron/Worker.zip\"\nunzip -P `cat ./pass` Worker\njava -cp .:Worker.jar:stanford-corenlp-3.3.0.jar:stanford-corenlp-3.3.0-models.jar:ejml-0.23.jar:jollyday-0.4.7.jar -jar Worker.jar > log"
+							.getBytes()));
+		}
 	}
+	
 
 	public static CreateTagsRequest createTagRequest(String key, String value) {
 		Tag t = new Tag();

@@ -26,12 +26,8 @@ public class LocalApplication {
 	}
 
 	public void startApplication(String[] inputVars) {
-		int urlsPerWorker;
 		System.out
 				.println("=======================================\nWelcome to the Tweet Analyser!!!\n=======================================");
-
-		urlsPerWorker = Integer.valueOf(inputVars[2]);
-		
 
 		if (!checkIfTypeExists(ec2Client, Ec2InstanceType.MANAGER)){
 			System.out.println("Creating new Manager!");
@@ -41,9 +37,7 @@ public class LocalApplication {
 		String inputLocation = this.s3Handler.uploadFile(inputVars[0], "Tweets");
 		System.out.println("Input file uploaded to:\n" + inputLocation);
 		String localAppToManagersqsUrl = sqsService.createQueue(LOCAL_APP_TO_MANAGER);
-		sqsService.sendMessage(inputLocation, LOCAL_APP_TO_MANAGER, localAppToManagersqsUrl);
-		// S3Object file = s3Handler.downloadFile("Tweets");
-
+		sqsService.sendMessage(inputLocation + "\n" + inputVars[2], LOCAL_APP_TO_MANAGER, localAppToManagersqsUrl);
 	}
 
 	private void initializeAmazonUtils() {
