@@ -18,20 +18,22 @@ import com.google.common.collect.Lists;
 public class Worker {
 	private static String accKey = "AKIAJ7NENWCNH4ZIBIQQ";
 	private static String secKey = "LWce1dJ65wK2ZCMYPTL+vnVLwBPMPh5fvNbxhnOC";
-	private static String MANAGER_TO_WORKER_NAME = "managerToWorker";
+    private static String jobsQueue = "jobsQueue";
+    private static String resultsQueue = "resultsQueue";
 	
     public static void main(String[] args) {
     	
     	AWSCredentials credentials = setCredentialsFromArgs(accKey, secKey);
     	SQSservice mySqsService = new SQSservice(credentials);
     	AmazonSQSClient sqsClient = new AmazonSQSClient(credentials);
-		String managerToWorkerUrl = sqsClient.getQueueUrl(MANAGER_TO_WORKER_NAME).getQueueUrl();
-		
+		String managerToWorkerUrl = sqsClient.getQueueUrl(jobsQueue).getQueueUrl();
+		String workerToManagerUrl = sqsClient.getQueueUrl(resultsQueue).getQueueUrl();
 		List<String> jobsFromQueue  = getJobsFromQueue(mySqsService, managerToWorkerUrl);
         List<String> resultAfterAnalysis = preformTweetAnalysis(jobsFromQueue);
-        addMessagesToQueue(resultAfterAnalysis);
+        addMessagesToQueue(resultAfterAnalysis, mySqsService, workerToManagerUrl);
 
     }
+
 	public static AWSCredentials setCredentialsFromArgs(String accKey,
 			String seckey) {
 		AWSCredentials credentials = null;
@@ -43,11 +45,12 @@ public class Worker {
 		}
 		return credentials;
 	}
+
     public static List<String> getJobsFromQueue(SQSservice mySqsService, String queueUrl) {
     	List<String> messagesContents = Lists.newArrayList();
     	//according to documentation recieveMessages should return 1-10 messages. 
     	//we need to check if we should limit it or keep allof them.
-    	List<Message> messages = mySqsService.recieveMessages(MANAGER_TO_WORKER_NAME, queueUrl);
+    	List<Message> messages = mySqsService.recieveMessages(jobsQueue, queueUrl);
     	for(Message jobMessage: messages){
     		messagesContents.add(jobMessage.getBody());
     		System.out.println("job Id" + jobMessage.getMessageId() + " Link:\n"+jobMessage.getBody() + "\nTaken from queue");
@@ -60,19 +63,20 @@ public class Worker {
     	return messagesContents;
     }
 
-    public static void addMessagesToQueue(List<String> messageToAdd) {
-        //TODO
+    public static void addMessagesToQueue(List<String> messagesToAdd, SQSservice sqsService, String resultsQueueUrl) {
+        for (String message: messagesToAdd) {
+            sqsService.sendMessage(message, resultsQueue, resultsQueueUrl);
+        }
     }
 
     public static List<String> preformTweetAnalysis(List<String> tweetLinks) {
-        //TODO Finish Analysis.
     	List<String> analysedTweets = Lists.newArrayList();
         try {
             for(String tweetLink: tweetLinks){
         	Document doc = Jsoup.connect(tweetLink).get();
             String tweet = doc.select("title").text();
             findSentiment(tweet);
-            printEntities(tweet);
+            analysedTweets.add(printEntities(tweet));
             }
         } catch (IOException e) {
             System.out.println(e);
@@ -82,8 +86,9 @@ public class Worker {
 
     /*** Tweet Analysis ***/
 
-    public static void printEntities(String tweet) {
+    public static String printEntities(String tweet) {
 
+        String analyzedTweet = "";
         Properties props = new Properties();
         props.put("annotators", "tokenize , ssplit, pos, lemma, ner");
         StanfordCoreNLP NERPipeline = new StanfordCoreNLP(props);
@@ -107,9 +112,10 @@ public class Worker {
                 // this is the NER label of the token
                 String ne = token.get(NamedEntityTagAnnotation.class);
                 System.out.println("\t-" + word + ":" + ne);
+                analyzedTweet += "\t-" + word + ":" + ne + "\n";
             }
         }
-
+        return analyzedTweet;
     }
 
     public static int findSentiment (String tweet){

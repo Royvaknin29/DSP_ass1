@@ -26,6 +26,7 @@ public class Manager {
 	private static String secKey = "LWce1dJ65wK2ZCMYPTL+vnVLwBPMPh5fvNbxhnOC";
 	private static String localToManagerqueueName = "localAppToManager";
 	private static String jobsQueue = "jobsQueue";
+	private static String resultsQueue = "resultsQueue";
 	
 	public static void main(String[] args) {
 		System.out.println("Manager Service Invocated!");
@@ -54,6 +55,7 @@ public class Manager {
 		//download tweets file and send links on jobs Queue.
 		S3Object tweetsObject = s3Hander.downloadFile("Tweets");
 		String jobsQueueUrl = mySqsService.createQueue(jobsQueue);
+		String resultsQueueUrl = mySqsService.createQueue(resultsQueue);
 		try {
 			numOfTweets = distibuteMessagesAndInsertToQueue(tweetsObject.getObjectContent(), jobsQueueUrl, mySqsService);
 		} catch (IOException e) {
