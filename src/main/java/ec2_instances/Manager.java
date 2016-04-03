@@ -20,6 +20,7 @@ import com.amazonaws.services.sqs.model.Message;
 import ass1.amazon_utils.Ec2InstanceType;
 import ass1.amazon_utils.S3Handler;
 import ass1.amazon_utils.SQSservice;
+import com.google.common.collect.Lists;
 
 public class Manager {
 	private static String accKey = "AKIAJ7NENWCNH4ZIBIQQ";
@@ -64,8 +65,10 @@ public class Manager {
 		numOfRequiredWorkers = numOfTweets / messagesPerWorker;
 		numOfActiveWorkers = countTypeAppearances(ec2Client, Ec2InstanceType.WORKER);
 		numOfRequiredWorkers -= numOfActiveWorkers;
-		//for(numOfRequiredWorkers); CREATE WORKERS! 
-	
+		//for(numOfRequiredWorkers); CREATE WORKERS!
+		//wait for the workers to execute all the jobs.
+		//wait until there are numOfTweets messages in the results queue
+		//getResultsFromResultsQueue
 	}
 
 	public static AWSCredentials setCredentialsFromArgs(String accKey,
@@ -110,9 +113,10 @@ public class Manager {
 	            numOTweets++;
 	        }
 	        System.out.println();
-	 return numOTweets;   
+	 	return numOTweets;
 	 }
-		private static int countTypeAppearances(AmazonEC2Client ec2Client,
+
+	private static int countTypeAppearances(AmazonEC2Client ec2Client,
 				Ec2InstanceType type) {
 			int numOfActiveWorkers = 0;
 			List<Reservation> reservations = ec2Client.describeInstances()
@@ -132,6 +136,20 @@ public class Manager {
 					}
 				}
 			}
-			return numOfActiveWorkers;
+		return numOfActiveWorkers;
+	}
+
+	public static List<String> getResultsFromResultsQueue(SQSservice mySqsService, String resultsQueueUrl) {
+		List<String> results = Lists.newArrayList();
+		List<Message> messages = mySqsService.recieveMessages(resultsQueue, resultsQueueUrl);
+		for(Message resultMessage: messages){
+			results.add(resultMessage.getBody());
+			System.out.println("result Id" + resultMessage.getMessageId() + " Link:\n"+resultMessage.getBody() + "\nTaken from queue");
 		}
+		for(Message resultMessageToDelete: messages){
+			mySqsService.deleteMessage(resultMessageToDelete, resultsQueueUrl);
+			System.out.println("result Id" + resultMessageToDelete.getMessageId() + "\nDeleted!");
+		}
+		return results;
+	}
 }
