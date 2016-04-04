@@ -16,8 +16,8 @@ import com.amazonaws.services.sqs.model.Message;
 import com.google.common.collect.Lists;
 
 public class Worker {
-	private static String accKey = "AKIAJ7NENWCNH4ZIBIQQ";
-	private static String secKey = "LWce1dJ65wK2ZCMYPTL+vnVLwBPMPh5fvNbxhnOC";
+	private static String accKey = "";
+	private static String secKey = "";
     private static String jobsQueue = "jobsQueue";
     private static String resultsQueue = "resultsQueue";
 	
