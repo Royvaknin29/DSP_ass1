@@ -5,8 +5,8 @@ import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.BasicAWSCredentials;
 
 public class RunLocalApplication {
-	private static String accKey = "AKIAJ7NENWCNH4ZIBIQQ";
-	private static String secKey = "LWce1dJ65wK2ZCMYPTL+vnVLwBPMPh5fvNbxhnOC";
+	private static String accKey = "";
+	private static String secKey = "";
 
 	public static void main(String[] args) {
 		AWSCredentials credentials = setCredentialsFromArgs(accKey, secKey);
@@ -14,7 +14,7 @@ public class RunLocalApplication {
 			System.out.println("Missing arguments!\naborting...");
 			System.exit(1);
 		}
-		LocalApplication localApplication = new LocalApplication(credentials);
+		LocalApplication localApplication = new LocalApplication(credentials, args[1]);
 		localApplication.startApplication(args);
 	}
 
