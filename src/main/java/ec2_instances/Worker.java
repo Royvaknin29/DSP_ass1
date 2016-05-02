@@ -3,6 +3,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Properties;
 
+import local_application.TweetAnalysisOutput;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 
@@ -29,7 +30,7 @@ public class Worker {
 		String managerToWorkerUrl = sqsClient.getQueueUrl(jobsQueue).getQueueUrl();
 		String workerToManagerUrl = sqsClient.getQueueUrl(resultsQueue).getQueueUrl();
 		List<String> jobsFromQueue  = getJobsFromQueue(mySqsService, managerToWorkerUrl);
-        List<String> resultAfterAnalysis = preformTweetAnalysis(jobsFromQueue);
+        List<TweetAnalysisOutput> resultAfterAnalysis = preformTweetAnalysis(jobsFromQueue);
         ObjectMapper mapper = new ObjectMapper();
         String jsonInString = mapper.writeValueAsString(resultAfterAnalysis);
         addMessagesToQueue(jsonInString, mySqsService, workerToManagerUrl);
@@ -70,26 +71,26 @@ public class Worker {
         }
     }
 
-    public static List<String> preformTweetAnalysis(List<String> tweetLinks) {
-    	List<String> analysedTweets = Lists.newArrayList();
+    public static List<TweetAnalysisOutput> preformTweetAnalysis(List<String> tweetLinks) {
+        List<TweetAnalysisOutput> results = Lists.newArrayList();
         try {
             for(String tweetLink: tweetLinks){
-        	Document doc = Jsoup.connect(tweetLink).get();
-            String tweet = doc.select("title").text();
-            findSentiment(tweet);
-            analysedTweets.add(printEntities(tweet));
+        	    Document doc = Jsoup.connect(tweetLink).get();
+                String tweet = doc.select("title").text();
+                int sentiment = findSentiment(tweet);
+                results.add(new TweetAnalysisOutput(tweet, sentiment, printEntities(tweet)));
             }
         } catch (IOException e) {
             System.out.println(e);
         }
-        return analysedTweets;
+        return results;
     }
 
     /*** Tweet Analysis ***/
 
-    public static String printEntities(String tweet) {
+    public static List<String> printEntities(String tweet) {
 
-        String analyzedTweet = "";
+        List<String> entities = Lists.newArrayList();
         Properties props = new Properties();
         props.put("annotators", "tokenize , ssplit, pos, lemma, ner");
         StanfordCoreNLP NERPipeline = new StanfordCoreNLP(props);
@@ -112,11 +113,11 @@ public class Worker {
                 String word = token.get(TextAnnotation.class);
                 // this is the NER label of the token
                 String ne = token.get(NamedEntityTagAnnotation.class);
-                System.out.println("\t-" + word + ":" + ne);
-                analyzedTweet += "\t-" + word + ":" + ne + "\n";
+//                System.out.println("\t-" + word + ":" + ne);
+                entities.add(word + ":" + ne);
             }
         }
-        return analyzedTweet;
+        return entities;
     }
 
     public static int findSentiment (String tweet){
