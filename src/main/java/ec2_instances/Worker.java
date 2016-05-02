@@ -6,15 +6,29 @@ import java.util.Properties;
 import local_application.TweetAnalysisOutput;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-
+import com.google.common.collect.Lists;
 import ass1.amazon_utils.SQSservice;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.sqs.AmazonSQSClient;
 import com.amazonaws.services.sqs.model.Message;
-import com.google.common.collect.Lists;
+
+import edu.stanford.nlp.ling.CoreAnnotations;
+import edu.stanford.nlp.ling.CoreAnnotations.NamedEntityTagAnnotation;
+import edu.stanford.nlp.ling.CoreAnnotations.SentencesAnnotation;
+import edu.stanford.nlp.ling.CoreAnnotations.TextAnnotation;
+import edu.stanford.nlp.ling.CoreAnnotations.TokensAnnotation;
+import edu.stanford.nlp.ling.CoreLabel;
+import edu.stanford.nlp.pipeline.Annotation;
+import edu.stanford.nlp.pipeline.StanfordCoreNLP;
+import edu.stanford.nlp.rnn.RNNCoreAnnotations;
+import edu.stanford.nlp.sentiment.SentimentCoreAnnotations;
+import edu.stanford.nlp.trees.Tree;
+import edu.stanford.nlp.util.CoreMap;
+
 
 public class Worker {
 	private static String accKey = "";
@@ -32,8 +46,12 @@ public class Worker {
 		List<String> jobsFromQueue  = getJobsFromQueue(mySqsService, managerToWorkerUrl);
         List<TweetAnalysisOutput> resultAfterAnalysis = preformTweetAnalysis(jobsFromQueue);
         ObjectMapper mapper = new ObjectMapper();
-        String jsonInString = mapper.writeValueAsString(resultAfterAnalysis);
-        addMessagesToQueue(jsonInString, mySqsService, workerToManagerUrl);
+        try {
+            String jsonInString = mapper.writeValueAsString(resultAfterAnalysis);
+            addMessagesToQueue(jsonInString, mySqsService, workerToManagerUrl);
+        } catch (Exception e) {
+            System.out.println("error serializing");
+        }
     }
 
 	public static AWSCredentials setCredentialsFromArgs(String accKey,
@@ -65,10 +83,8 @@ public class Worker {
     	return messagesContents;
     }
 
-    public static void addMessagesToQueue(List<String> messagesToAdd, SQSservice sqsService, String resultsQueueUrl) {
-        for (String message: messagesToAdd) {
-            sqsService.sendMessage(message, resultsQueue, resultsQueueUrl);
-        }
+    public static void addMessagesToQueue(String messageToAdd, SQSservice sqsService, String resultsQueueUrl) {
+        sqsService.sendMessage(messageToAdd, resultsQueue, resultsQueueUrl);
     }
 
     public static List<TweetAnalysisOutput> preformTweetAnalysis(List<String> tweetLinks) {
