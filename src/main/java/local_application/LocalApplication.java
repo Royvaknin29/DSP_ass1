@@ -1,11 +1,8 @@
 package local_application;
 
+import java.io.FileNotFoundException;
+import java.io.PrintWriter;
 import java.util.List;
-
-import ass1.amazon_utils.EC2LaunchFactory;
-import ass1.amazon_utils.Ec2InstanceType;
-import ass1.amazon_utils.S3Handler;
-import ass1.amazon_utils.SQSservice;
 
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.services.ec2.AmazonEC2Client;
@@ -20,6 +17,11 @@ import com.hp.gagawa.java.elements.P;
 import com.hp.gagawa.java.elements.Text;
 import com.hp.gagawa.java.elements.Title;
 
+import ass1.amazon_utils.EC2LaunchFactory;
+import ass1.amazon_utils.Ec2InstanceType;
+import ass1.amazon_utils.S3Handler;
+import ass1.amazon_utils.SQSservice;
+
 public class LocalApplication {
 	private String LOCAL_APP_TO_MANAGER = "localAppToManager";
 	private AWSCredentials credentials;
@@ -27,10 +29,12 @@ public class LocalApplication {
 	private S3Handler s3Handler;
 	private SQSservice sqsService;
 	private AmazonEC2Client ec2Client;
-
-	public LocalApplication(AWSCredentials credentials) {
+	private String outputFilename;
+	
+	public LocalApplication(AWSCredentials credentials, String outputFilename) {
 		this.credentials = credentials;
 		initializeAmazonUtils();
+		this.outputFilename = outputFilename;
 	}
 
 	public void startApplication(String[] inputVars) {
@@ -77,7 +81,14 @@ public class LocalApplication {
 		}
 		return false;
 	}
-
+	
+	private void writeToHtmlFile(String html) throws FileNotFoundException{
+		
+		try(  PrintWriter out = new PrintWriter( this.outputFilename + ".html" )  ){
+		    out.println( html );
+		}
+	}
+	
 	private String buildHtmlString(List<TweetAnalysisOutput> outputs) {
 		Html html = new Html();
 		Head head = new Head();

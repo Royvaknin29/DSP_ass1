@@ -14,7 +14,7 @@ public class RunLocalApplication {
 			System.out.println("Missing arguments!\naborting...");
 			System.exit(1);
 		}
-		LocalApplication localApplication = new LocalApplication(credentials);
+		LocalApplication localApplication = new LocalApplication(credentials, args[1]);
 		localApplication.startApplication(args);
 	}
 
