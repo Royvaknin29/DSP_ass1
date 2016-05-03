@@ -14,7 +14,6 @@ import com.amazonaws.services.sqs.model.DeleteQueueRequest;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
-import com.google.common.collect.Lists;
 
 public class SQSservice {
 	private AmazonSQS sqsClient;

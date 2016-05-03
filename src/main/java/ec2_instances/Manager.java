@@ -4,7 +4,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
 import java.util.List;
 
 import com.amazonaws.AmazonClientException;
@@ -17,16 +16,22 @@ import com.amazonaws.services.ec2.model.Tag;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.sqs.AmazonSQSClient;
 import com.amazonaws.services.sqs.model.Message;
-import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
+import com.hp.gagawa.java.elements.Body;
+import com.hp.gagawa.java.elements.Font;
+import com.hp.gagawa.java.elements.Head;
+import com.hp.gagawa.java.elements.Html;
+import com.hp.gagawa.java.elements.P;
+import com.hp.gagawa.java.elements.Text;
+import com.hp.gagawa.java.elements.Title;
 
 import ass1.amazon_utils.EC2LaunchFactory;
 import ass1.amazon_utils.Ec2InstanceType;
 import ass1.amazon_utils.S3Handler;
 import ass1.amazon_utils.SQSservice;
+import local_application.TweetAnalysisOutput;
 
 public class Manager {
 	private static String accKey = "";
@@ -76,41 +81,60 @@ public class Manager {
 			ec2Factory.launchEC2Instance(Ec2InstanceType.WORKER);
 		}
 
-		List<Message> totalOutputMessages = Lists.newArrayList();
-		List<String> tweetsOutputs = Lists.newArrayList();
+		List<TweetAnalysisOutput> tweetsAnalysisOutputs = Lists.newArrayList();
 		int counter = 0;
-		//waiting for workers to complete jobs.
-		while (tweetsOutputs.size() < numOfTweets) {
-			if (counter == 20){
+		// waiting for workers to complete jobs.
+		while (tweetsAnalysisOutputs.size() < numOfTweets) {
+			if (counter == 20) {
 				System.out.println("Reached Max Polling time (40 sec) exiting..");
 				break;
 			}
 			List<Message> currBatch = mySqsService.recieveMessages(resultsQueue, resultsQueueUrl);
-			extractTweetOutputsFromMessages(currBatch, tweetsOutputs);
-			try {Thread.sleep(1000);
+			extractTweetOutputsFromMessages(currBatch, tweetsAnalysisOutputs);
+			deleteMessagesFromQueue(currBatch, mySqsService, resultsQueueUrl);
+			try {
+				Thread.sleep(1000);
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
 		}
-
-		// wait for the workers to execute all the jobs.
-		// wait until there are numOfTweets messages in the results queue
-		// getResultsFromResultsQueue
+		String html = buildHtmlString(tweetsAnalysisOutputs);
+		System.out.println("Sending HTML String to LocalApp->Manager Queue.");
+		mySqsService.sendMessage(html,localToManagerqueueName,localAppToManagerQueueUrl);
+				
+	
 	}
 
-	private static void extractTweetOutputsFromMessages(List<Message> currBatch, List<String> tweetsOutputs) {
-		ObjectMapper mapper = new ObjectMapper();
+	private static void deleteMessagesFromQueue(List<Message> currBatch, SQSservice mySqsService, String queueUrl) {
 		for(Message message: currBatch){
-		try {
-			List<String> converted = mapper.readValue(message.getBody(), new TypeReference<List<String>>(){});
-			tweetsOutputs.addAll(converted);
-		} catch (Exception e){
-			System.out.println("Caught Exception trying to parse a message from queue..");
-			System.out.println(e);
-		}
-		//User user = mapper.readValue(jsonInString, User.class)
+			mySqsService.deleteMessage(message, queueUrl);
 		}
 		
+	}
+
+	private static List<TweetAnalysisOutput> processRawOutput(String rawOutputsAsSrting) {
+		ObjectMapper om = new ObjectMapper();
+		List<TweetAnalysisOutput> processedTweets = Lists.newArrayList();
+			try {
+				List<TweetAnalysisOutput> tweetOutputobj = om.readValue(rawOutputsAsSrting, new TypeReference<List<TweetAnalysisOutput>>(){});
+				processedTweets.addAll(tweetOutputobj);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		return processedTweets;
+	}
+
+	private static void extractTweetOutputsFromMessages(final List<Message> currBatch, List<TweetAnalysisOutput> tweetsOutputs) {
+		for (Message message : currBatch) {
+			try {
+				String extracted = message.getBody();
+				tweetsOutputs.addAll(processRawOutput(extracted));
+			} catch (Exception e) {
+				System.out.println("Caught Exception trying to parse a message from queue..");
+				System.out.println(e);
+			}
+		}
+
 	}
 
 	public static AWSCredentials setCredentialsFromArgs(String accKey, String seckey) {
@@ -190,5 +214,56 @@ public class Manager {
 			System.out.println("result Id" + resultMessageToDelete.getMessageId() + "\nDeleted!");
 		}
 		return results;
+	}
+	
+	private static String buildHtmlString(List<TweetAnalysisOutput> outputs) {
+		Html html = new Html();
+		Head head = new Head();
+		// keep the head?
+		html.appendChild(head);
+		Title title = new Title();
+		title.appendChild(new Text("Tweet Analysis Output!"));
+		head.appendChild(new Text("### Tweet Analysis Output ! ###"));
+		head.appendChild(title);
+		Body body = new Body();
+		html.appendChild(body);
+		for (TweetAnalysisOutput tweetOutput : outputs) {
+			P p = new P();
+			Font f = new Font();
+			f.setColor(getColorFromScore(tweetOutput.getScore()));
+			f.appendChild(new Text(tweetOutput.getTweet()));
+			p.appendChild(f);
+			p.appendChild(new Text("  " + tweetOutput.getSentiments().toString()));
+
+			body.appendChild(p);
+
+		}
+
+		return html.write();
+	}
+	private static String getColorFromScore(int score) {
+		String color;
+		switch (score) {
+		case 0:
+			color = "darkred";
+			break;
+		case 1:
+			color = "red";
+			break;
+		case 2:
+			color = "black";
+			break;
+		case 3:
+			color = "lightgreen";
+			break;
+		case 4:
+			color = "darkgreen";
+			break;
+		default:
+			color = "";
+			break;
+		}
+
+		return color;
 	}
 }

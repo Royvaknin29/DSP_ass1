@@ -9,13 +9,7 @@ import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.Reservation;
 import com.amazonaws.services.ec2.model.Tag;
-import com.hp.gagawa.java.elements.Body;
-import com.hp.gagawa.java.elements.Font;
-import com.hp.gagawa.java.elements.Head;
-import com.hp.gagawa.java.elements.Html;
-import com.hp.gagawa.java.elements.P;
-import com.hp.gagawa.java.elements.Text;
-import com.hp.gagawa.java.elements.Title;
+import com.amazonaws.services.sqs.model.Message;
 
 import ass1.amazon_utils.EC2LaunchFactory;
 import ass1.amazon_utils.Ec2InstanceType;
@@ -50,6 +44,19 @@ public class LocalApplication {
 		System.out.println("Input file uploaded to:\n" + inputLocation);
 		String localAppToManagersqsUrl = sqsService.createQueue(LOCAL_APP_TO_MANAGER);
 		sqsService.sendMessage(inputLocation + "\n" + inputVars[2], LOCAL_APP_TO_MANAGER, localAppToManagersqsUrl);
+		try {
+			Thread.sleep(10000);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+		List<Message> htmlStringMessage = sqsService.recieveMessages(LOCAL_APP_TO_MANAGER, localAppToManagersqsUrl);
+		String htmlString = htmlStringMessage.get(0).getBody();
+		try {
+			writeToHtmlFile(htmlString);
+		} catch (FileNotFoundException e) {
+			System.out.println("Failed writing html string to file");
+			e.printStackTrace();
+		}
 	}
 
 	private void initializeAmazonUtils() {
@@ -89,55 +96,7 @@ public class LocalApplication {
 		}
 	}
 	
-	private String buildHtmlString(List<TweetAnalysisOutput> outputs) {
-		Html html = new Html();
-		Head head = new Head();
-		// keep the head?
-		html.appendChild(head);
-		Title title = new Title();
-		title.appendChild(new Text("Tweet Analysis Output!"));
-		head.appendChild(new Text("### Tweet Analysis Output ! ###"));
-		head.appendChild(title);
-		Body body = new Body();
-		html.appendChild(body);
-		for (TweetAnalysisOutput tweetOutput : outputs) {
-			P p = new P();
-			Font f = new Font();
-			f.setColor(getColorFromScore(tweetOutput.getScore()));
-			f.appendChild(new Text(tweetOutput.getTweet()));
-			p.appendChild(f);
-			p.appendChild(new Text("  " + tweetOutput.getSentiments().toString()));
 
-			body.appendChild(p);
 
-		}
 
-		return html.write();
-	}
-
-	private String getColorFromScore(int score) {
-		String color;
-		switch (score) {
-		case 0:
-			color = "darkred";
-			break;
-		case 1:
-			color = "red";
-			break;
-		case 2:
-			color = "black";
-			break;
-		case 3:
-			color = "lightgreen";
-			break;
-		case 4:
-			color = "darkgreen";
-			break;
-		default:
-			color = "";
-			break;
-		}
-
-		return color;
-	}
 }
