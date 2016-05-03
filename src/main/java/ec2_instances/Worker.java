@@ -3,17 +3,32 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Properties;
 
+import local_application.TweetAnalysisOutput;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-
+import com.google.common.collect.Lists;
 import ass1.amazon_utils.SQSservice;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.sqs.AmazonSQSClient;
 import com.amazonaws.services.sqs.model.Message;
-import com.google.common.collect.Lists;
+
+import edu.stanford.nlp.ling.CoreAnnotations;
+import edu.stanford.nlp.ling.CoreAnnotations.NamedEntityTagAnnotation;
+import edu.stanford.nlp.ling.CoreAnnotations.SentencesAnnotation;
+import edu.stanford.nlp.ling.CoreAnnotations.TextAnnotation;
+import edu.stanford.nlp.ling.CoreAnnotations.TokensAnnotation;
+import edu.stanford.nlp.ling.CoreLabel;
+import edu.stanford.nlp.pipeline.Annotation;
+import edu.stanford.nlp.pipeline.StanfordCoreNLP;
+import edu.stanford.nlp.rnn.RNNCoreAnnotations;
+import edu.stanford.nlp.sentiment.SentimentCoreAnnotations;
+import edu.stanford.nlp.trees.Tree;
+import edu.stanford.nlp.util.CoreMap;
+
 
 public class Worker {
 	private static String accKey = "";
@@ -29,9 +44,14 @@ public class Worker {
 		String managerToWorkerUrl = sqsClient.getQueueUrl(jobsQueue).getQueueUrl();
 		String workerToManagerUrl = sqsClient.getQueueUrl(resultsQueue).getQueueUrl();
 		List<String> jobsFromQueue  = getJobsFromQueue(mySqsService, managerToWorkerUrl);
-        List<String> resultAfterAnalysis = preformTweetAnalysis(jobsFromQueue);
-        addMessagesToQueue(resultAfterAnalysis, mySqsService, workerToManagerUrl);
-
+        List<TweetAnalysisOutput> resultAfterAnalysis = preformTweetAnalysis(jobsFromQueue);
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            String jsonInString = mapper.writeValueAsString(resultAfterAnalysis);
+            addMessagesToQueue(jsonInString, mySqsService, workerToManagerUrl);
+        } catch (Exception e) {
+            System.out.println("error serializing");
+        }
     }
 
 	public static AWSCredentials setCredentialsFromArgs(String accKey,
@@ -63,32 +83,30 @@ public class Worker {
     	return messagesContents;
     }
 
-    public static void addMessagesToQueue(List<String> messagesToAdd, SQSservice sqsService, String resultsQueueUrl) {
-        for (String message: messagesToAdd) {
-            sqsService.sendMessage(message, resultsQueue, resultsQueueUrl);
-        }
+    public static void addMessagesToQueue(String messageToAdd, SQSservice sqsService, String resultsQueueUrl) {
+        sqsService.sendMessage(messageToAdd, resultsQueue, resultsQueueUrl);
     }
 
-    public static List<String> preformTweetAnalysis(List<String> tweetLinks) {
-    	List<String> analysedTweets = Lists.newArrayList();
+    public static List<TweetAnalysisOutput> preformTweetAnalysis(List<String> tweetLinks) {
+        List<TweetAnalysisOutput> results = Lists.newArrayList();
         try {
             for(String tweetLink: tweetLinks){
-        	Document doc = Jsoup.connect(tweetLink).get();
-            String tweet = doc.select("title").text();
-            findSentiment(tweet);
-            analysedTweets.add(printEntities(tweet));
+        	    Document doc = Jsoup.connect(tweetLink).get();
+                String tweet = doc.select("title").text();
+                int sentiment = findSentiment(tweet);
+                results.add(new TweetAnalysisOutput(tweet, sentiment, printEntities(tweet)));
             }
         } catch (IOException e) {
             System.out.println(e);
         }
-        return analysedTweets;
+        return results;
     }
 
     /*** Tweet Analysis ***/
 
-    public static String printEntities(String tweet) {
+    public static List<String> printEntities(String tweet) {
 
-        String analyzedTweet = "";
+        List<String> entities = Lists.newArrayList();
         Properties props = new Properties();
         props.put("annotators", "tokenize , ssplit, pos, lemma, ner");
         StanfordCoreNLP NERPipeline = new StanfordCoreNLP(props);
@@ -111,11 +129,11 @@ public class Worker {
                 String word = token.get(TextAnnotation.class);
                 // this is the NER label of the token
                 String ne = token.get(NamedEntityTagAnnotation.class);
-                System.out.println("\t-" + word + ":" + ne);
-                analyzedTweet += "\t-" + word + ":" + ne + "\n";
+//                System.out.println("\t-" + word + ":" + ne);
+                entities.add(word + ":" + ne);
             }
         }
-        return analyzedTweet;
+        return entities;
     }
 
     public static int findSentiment (String tweet){
