@@ -35,7 +35,7 @@ import local_application.TweetAnalysisOutput;
 
 public class Manager {
 	private static String accKey = "";
-	private static String secKey = "+s0fbXi/5X9qoUbX2ra";
+	private static String secKey = "";
 	private static String localToManagerqueueName = "localAppToManager";
 	private static String jobsQueue = "jobsQueue";
 	private static String resultsQueue = "resultsQueue";
