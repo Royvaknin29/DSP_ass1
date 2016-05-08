@@ -42,21 +42,29 @@ public class LocalApplication {
 		this.s3Handler.createBucket();
 		String inputLocation = this.s3Handler.uploadFile(inputVars[0], "Tweets");
 		System.out.println("Input file uploaded to:\n" + inputLocation);
+//		String inputLocation = "https://s3.amazonaws.com/ass-1-bucket-roy-aaron/Tweets";
 		String localAppToManagersqsUrl = sqsService.createQueue(LOCAL_APP_TO_MANAGER);
 		sqsService.sendMessage(inputLocation + "\n" + inputVars[2], LOCAL_APP_TO_MANAGER, localAppToManagersqsUrl);
-		try {
-			Thread.sleep(10000);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
+		while(true) {
+			try {
+				Thread.sleep(30000);
+//				List<Message> htmlStringMessage = sqsService.recieveMessages(LOCAL_APP_TO_MANAGER, localAppToManagersqsUrl);
+//				String htmlString = htmlStringMessage.get(0).getBody();
+//				if (htmlString.contains("<head>")) {
+//					System.out.println(htmlString);
+//					break;
+//				}
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
 		}
-		List<Message> htmlStringMessage = sqsService.recieveMessages(LOCAL_APP_TO_MANAGER, localAppToManagersqsUrl);
-		String htmlString = htmlStringMessage.get(0).getBody();
-		try {
-			writeToHtmlFile(htmlString);
-		} catch (FileNotFoundException e) {
-			System.out.println("Failed writing html string to file");
-			e.printStackTrace();
-		}
+
+//		try {
+//			writeToHtmlFile(htmlString);
+//		} catch (FileNotFoundException e) {
+//			System.out.println("Failed writing html string to file");
+//			e.printStackTrace();
+//		}
 	}
 
 	private void initializeAmazonUtils() {
@@ -89,12 +97,12 @@ public class LocalApplication {
 		return false;
 	}
 	
-	private void writeToHtmlFile(String html) throws FileNotFoundException{
-		
-		try(  PrintWriter out = new PrintWriter( this.outputFilename + ".html" )  ){
-		    out.println( html );
-		}
-	}
+//	private void writeToHtmlFile(String html) throws FileNotFoundException{
+//
+//		try(  PrintWriter out = new PrintWriter( this.outputFilename + ".html" )  ){
+//		    out.println( html );
+//		}
+//	}
 	
 
 

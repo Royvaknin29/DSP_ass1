@@ -23,19 +23,16 @@ import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.model.Bucket;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.*;
 
 public class S3Handler {
-	private AmazonS3 amazonS3;
+	private AmazonS3Client amazonS3;
 	private String bucketName;
 
 	public S3Handler(AWSCredentials credentials) {
 		this.amazonS3 = new AmazonS3Client(credentials);
-		Region usWest2 = Region.getRegion(Regions.US_WEST_2);
-		amazonS3.setRegion(usWest2);
+		Region usEast1 = Region.getRegion(Regions.US_EAST_1);
+		amazonS3.setRegion(usEast1);
 		this.bucketName = "ass-1-bucket-roy-aaron";
 	}
 
@@ -74,11 +71,14 @@ public class S3Handler {
 			System.out.println("Uploading Tweets File into S3");
 			File tweetsFile = new File(fileName);
 			this.amazonS3.putObject(new PutObjectRequest(this.bucketName, key,
-					tweetsFile));
+					tweetsFile).withCannedAcl(CannedAccessControlList.PublicRead));
 			System.out.println("Upload Completed succsessfully!");
-			return String.format("https://s3-us-west-2.amazonaws.com/%s/%s",
-					this.bucketName, fileName);
-
+//			return String.format("https://s3-us-west-2.amazonaws.com/%s/%s",
+//					this.bucketName, fileName);
+			String region = amazonS3.getBucketLocation(bucketName);
+//			return String.format("https://s3-us-east-1.amazonaws.com/%s/%s",
+//					this.bucketName, fileName);
+			return this.amazonS3.getResourceUrl(this.bucketName, key);
 		}
 
 		catch (AmazonServiceException ase) {
