@@ -4,7 +4,9 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.auth.AWSCredentials;
@@ -34,15 +36,17 @@ import ass1.amazon_utils.SQSservice;
 import local_application.TweetAnalysisOutput;
 
 public class Manager {
-	private static String accKey = "";
-	private static String secKey = "";
+	private static String accKey = "AKIAJIWZRPBTMYXF4K7Q";
+	private static String secKey = "Ad6zT9adXQTs7e1b3jx09+s0fbXi/5X9qoUbX2ra";
 	private static String localToManagerqueueName = "localAppToManager";
 	private static String jobsQueue = "jobsQueue";
 	private static String resultsQueue = "resultsQueue";
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws InterruptedException {
 		System.out.println("Manager Service Invocated!");
+
 		// Init Utils and Queues.
+		 Queue<String> jobs = new LinkedList<String>();
 		int messagesPerWorker = 0, numOfRequiredWorkers = 0, numOfTweets = 0, numOfActiveWorkers = 0;
 		AWSCredentials credentials = setCredentialsFromArgs(accKey, secKey);
 		SQSservice mySqsService = new SQSservice(credentials);
@@ -52,89 +56,118 @@ public class Manager {
 		S3Handler s3Hander = new S3Handler(credentials);
 		AmazonSQSClient sqsClient = new AmazonSQSClient(credentials);
 		String localAppToManagerQueueUrl = sqsClient.getQueueUrl(localToManagerqueueName).getQueueUrl();
-		List<Message> messages = mySqsService.recieveMessages(localToManagerqueueName, localAppToManagerQueueUrl);
-		// get args from localApp
-		try {
-			String inputFileArgs = getInputFileUrlAndDeleteMessage(messages, mySqsService, localAppToManagerQueueUrl);
-			String[] splitArgs = inputFileArgs.split("\\r?\\n");
-			messagesPerWorker = Integer.valueOf(splitArgs[1]);
-			System.out.println("Recieved URL: " + inputFileArgs + "\nMessagesPerWorker = " + splitArgs[1]);
-		} catch (Exception e) {
-			System.out.println(e);
-		}
-		// download tweets file and send links on jobs Queue.
-		S3Object tweetsObject = s3Hander.downloadFile("Tweets");
-		String jobsQueueUrl = mySqsService.createQueue(jobsQueue);
-		String resultsQueueUrl = mySqsService.createQueue(resultsQueue);
-		try {
-			numOfTweets = distributeMessagesAndInsertToQueue(tweetsObject.getObjectContent(), jobsQueueUrl,
-					mySqsService);
-		} catch (IOException e) {
-			System.out.println("Error reading from Downloaded file.\n" + e);
-		}
-		numOfRequiredWorkers = numOfTweets / messagesPerWorker;
-		numOfActiveWorkers = countTypeAppearances(ec2Client, Ec2InstanceType.WORKER);
-		numOfRequiredWorkers -= numOfActiveWorkers;
-		// Creating Workers:
-		for (int i = 0; i < numOfRequiredWorkers; i++) {
-			System.out.println(String.format("Creating worker number %d!", i + 1));
-			ec2Factory.launchEC2Instance(Ec2InstanceType.WORKER);
-		}
+		//List<Message> messages = mySqsService.recieveMessages(localToManagerqueueName, localAppToManagerQueueUrl);
+		LocalAppToManagerListener listener = new LocalAppToManagerListener(mySqsService, jobs,
+				localAppToManagerQueueUrl);
+		Thread listenerThread = new Thread(listener);
+		listenerThread.start();;
+		System.out.println("Sent Thread..");
+		String currJOb;
+		while (true) {
+			currJOb = jobs.poll();
+			System.out.println("Manager: curr job is:" + currJOb);
+			if (currJOb != null) {
+				System.out.println("Manager: got a new Message:\n" + currJOb);
+				if (currJOb.equals("STOP!")){
+					break;
+				}
+				//Got a job..
+				try {
+//					String inputFileArgs = getInputFileUrlAndDeleteMessage(messages, mySqsService,
+//							localAppToManagerQueueUrl);
+					String[] splitArgs = currJOb.split("\\r?\\n");
+					messagesPerWorker = Integer.valueOf(splitArgs[1]);
+					System.out.println("Manager: Recieved new Job\nMessagesPerWorker = " + splitArgs[1]);
+				} catch (Exception e) {
+					System.out.println(e);
+				}
+				// download tweets file and send links on jobs Queue.
+				//TODO: download by url..
+				S3Object tweetsObject = s3Hander.downloadFile("Tweets");
+				//TODO: check if not exist.
+				String jobsQueueUrl = mySqsService.createQueue(jobsQueue);
+				String resultsQueueUrl = mySqsService.createQueue(resultsQueue);
+				try {
+					numOfTweets = distributeMessagesAndInsertToQueue(tweetsObject.getObjectContent(), jobsQueueUrl,
+							mySqsService);
+				} catch (Exception e) {
+					System.out.println("Error reading from Downloaded file.\n" + e);
+				}
+				numOfRequiredWorkers = numOfTweets / messagesPerWorker;
+				numOfActiveWorkers = countTypeAppearances(ec2Client, Ec2InstanceType.WORKER);
+				numOfRequiredWorkers -= numOfActiveWorkers;
+				// Creating Workers:
+				System.out.println("Number of required workers:" + numOfRequiredWorkers);
+				System.out.println("Starting to create workers..");
+				for (int i = 0; i < numOfRequiredWorkers; i++) {
+					System.out.println(String.format("Creating worker number %d!", i + 1));
+					ec2Factory.launchEC2Instance(Ec2InstanceType.WORKER);
+				}
 
-		List<TweetAnalysisOutput> tweetsAnalysisOutputs = Lists.newArrayList();
-		int counter = 0;
-		// waiting for workers to complete jobs.
-		while (tweetsAnalysisOutputs.size() < numOfTweets) {
-			if (counter == 20) {
-				System.out.println("Reached Max Polling time (40 sec) exiting..");
-				break;
+				List<TweetAnalysisOutput> tweetsAnalysisOutputs = Lists.newArrayList();
+				// waiting for workers to complete jobs.
+				while (tweetsAnalysisOutputs.size() < numOfTweets) {
+					List<Message> currBatch = mySqsService.recieveMessages(resultsQueue, resultsQueueUrl);
+					System.out.println("got " + tweetsAnalysisOutputs.size() + "Messages so far..");
+					extractTweetOutputsFromMessages(currBatch, tweetsAnalysisOutputs);
+					deleteMessagesFromQueue(currBatch, mySqsService, resultsQueueUrl);
+					try {
+						Thread.sleep(2000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				}
+				System.out.println();
+				String html = buildHtmlString(tweetsAnalysisOutputs);
+				System.out.println("Sending HTML String to LocalApp->Manager Queue.");
+				mySqsService.sendMessage(html, localToManagerqueueName, localAppToManagerQueueUrl);
+
 			}
-			List<Message> currBatch = mySqsService.recieveMessages(resultsQueue, resultsQueueUrl);
-			extractTweetOutputsFromMessages(currBatch, tweetsAnalysisOutputs);
-			deleteMessagesFromQueue(currBatch, mySqsService, resultsQueueUrl);
-			try {
+
+			else {
 				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
 			}
 		}
-		String html = buildHtmlString(tweetsAnalysisOutputs);
-		System.out.println("Sending HTML String to LocalApp->Manager Queue.");
-		mySqsService.sendMessage(html,localToManagerqueueName,localAppToManagerQueueUrl);
-				
-	
+		System.out.println("Recieved Quit command..\nExiting.");
 	}
 
 	private static void deleteMessagesFromQueue(List<Message> currBatch, SQSservice mySqsService, String queueUrl) {
-		for(Message message: currBatch){
+		for (Message message : currBatch) {
 			mySqsService.deleteMessage(message, queueUrl);
 		}
-		
+
 	}
 
 	private static List<TweetAnalysisOutput> processRawOutput(String rawOutputsAsSrting) {
 		ObjectMapper om = new ObjectMapper();
 		List<TweetAnalysisOutput> processedTweets = Lists.newArrayList();
-			try {
-				List<TweetAnalysisOutput> tweetOutputobj = om.readValue(rawOutputsAsSrting, new TypeReference<List<TweetAnalysisOutput>>(){});
-				processedTweets.addAll(tweetOutputobj);
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+		try {
+			List<TweetAnalysisOutput> tweetOutputobj = om.readValue(rawOutputsAsSrting,
+					new TypeReference<List<TweetAnalysisOutput>>() {
+					});
+			System.out.println("Desiarilzed: " + tweetOutputobj);
+			processedTweets.addAll(tweetOutputobj);
+		} catch (Exception e) {
+			System.out.println(e.getMessage());
+		}
 		return processedTweets;
 	}
 
-	private static void extractTweetOutputsFromMessages(final List<Message> currBatch, List<TweetAnalysisOutput> tweetsOutputs) {
-		for (Message message : currBatch) {
-			try {
-				String extracted = message.getBody();
-				tweetsOutputs.addAll(processRawOutput(extracted));
-			} catch (Exception e) {
-				System.out.println("Caught Exception trying to parse a message from queue..");
-				System.out.println(e);
+	private static void extractTweetOutputsFromMessages(final List<Message> currBatch,
+			List<TweetAnalysisOutput> tweetsOutputs) {
+		if (currBatch != null) {
+			for (Message message : currBatch) {
+				try {
+					String extracted = message.getBody();
+					System.out.println("tweet outputs was " + tweetsOutputs.size());
+					tweetsOutputs.addAll(processRawOutput(extracted));
+					System.out.println("tweet outputs Is now" + tweetsOutputs.size());
+				} catch (Exception e) {
+					System.out.println("Caught Exception trying to parse a message from queue..");
+					System.out.println(e);
+				}
 			}
 		}
-
 	}
 
 	public static AWSCredentials setCredentialsFromArgs(String accKey, String seckey) {
@@ -153,7 +186,7 @@ public class Manager {
 		String url = null;
 		Message m = null;
 		for (Message message : messages) {
-			if (message.getBody().contains(".txt")) {
+			if (message.getBody().contains("Tweets")) {
 				url = message.getBody();
 				m = message;
 				break;
@@ -215,8 +248,9 @@ public class Manager {
 		}
 		return results;
 	}
-	
+
 	private static String buildHtmlString(List<TweetAnalysisOutput> outputs) {
+		System.out.println("building html..");
 		Html html = new Html();
 		Head head = new Head();
 		// keep the head?
@@ -238,9 +272,10 @@ public class Manager {
 			body.appendChild(p);
 
 		}
-
+		System.out.println("Finished building html..");
 		return html.write();
 	}
+
 	private static String getColorFromScore(int score) {
 		String color;
 		switch (score) {

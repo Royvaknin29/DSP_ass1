@@ -29,7 +29,7 @@ public class EC2LaunchFactory {
 		RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
 		runInstancesRequest
 				.setInstanceInitiatedShutdownBehavior(ShutdownBehavior.Terminate);
-		runInstancesRequest.withImageId("ami-34f4fe5e")
+		runInstancesRequest.withImageId("ami-0c5fb961")
 				.withInstanceType(INSTANCE_TYPE).withMinCount(1)
 				.withMaxCount(1).withKeyName(KEY_NAME)
 				.withSecurityGroups(SECURITY_GROUP)
@@ -53,7 +53,7 @@ public class EC2LaunchFactory {
 		}
 		else{
 			return new String(
-					encodeBase64("#!/bin/bash\ncd ~\nwget \"https://s3.amazonaws.com/jars-roy-aaron/Worker.zip\"\nunzip -P `cat ./pass` Worker\njava -cp .:Worker.jar:stanford-corenlp-3.3.0.jar:stanford-corenlp-3.3.0-models.jar:ejml-0.23.jar:jollyday-0.4.7.jar -jar Worker.jar > log"
+					encodeBase64("#!/bin/bash\ncd ~\nwget \"https://s3.amazonaws.com/jars-roy-aaron/Worker.zip\"\nunzip -P `cat ./pass` Worker\njava -jar -Xms128m -Xmx768m Worker.jar  > log"
 							.getBytes()));
 		}
 	}

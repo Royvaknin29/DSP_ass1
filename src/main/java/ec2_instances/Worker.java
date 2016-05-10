@@ -31,8 +31,8 @@ import edu.stanford.nlp.util.CoreMap;
 
 
 public class Worker {
-	private static String accKey = "";
-	private static String secKey = "";
+	private static String accKey = "AKIAJIWZRPBTMYXF4K7Q";
+	private static String secKey = "Ad6zT9adXQTs7e1b3jx09+s0fbXi/5X9qoUbX2ra";
     private static String jobsQueue = "jobsQueue";
     private static String resultsQueue = "resultsQueue";
 	
