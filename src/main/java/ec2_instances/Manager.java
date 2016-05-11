@@ -36,8 +36,7 @@ import ass1.amazon_utils.SQSservice;
 import local_application.TweetAnalysisOutput;
 
 public class Manager {
-	private static String accKey = "AKIAJIWZRPBTMYXF4K7Q";
-	
+	private static String accKey = "";
 	private static String secKey = "";
 	private static String localToManagerqueueName = "localAppToManager";
 	private static String jobsQueue = "jobsQueue";
