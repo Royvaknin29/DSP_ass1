@@ -46,13 +46,15 @@ public class Worker {
 		String workerToManagerUrl = sqsClient.getQueueUrl(resultsQueue).getQueueUrl();
         while (!isQueueEmpty(sqsClient, managerToWorkerUrl)) {
             List<String> jobsFromQueue  = getJobsFromQueue(mySqsService, managerToWorkerUrl);
-            List<TweetAnalysisOutput> resultAfterAnalysis = preformTweetAnalysis(jobsFromQueue);
-            ObjectMapper mapper = new ObjectMapper();
-            try {
-                String jsonInString = mapper.writeValueAsString(resultAfterAnalysis);
-                addMessagesToQueue(jsonInString, mySqsService, workerToManagerUrl);
-            } catch (Exception e) {
-                System.out.println("error serializing");
+            if (jobsFromQueue.size() > 0) {
+                List<TweetAnalysisOutput> resultAfterAnalysis = preformTweetAnalysis(jobsFromQueue);
+                ObjectMapper mapper = new ObjectMapper();
+                try {
+                    String jsonInString = mapper.writeValueAsString(resultAfterAnalysis);
+                    addMessagesToQueue(jsonInString, mySqsService, workerToManagerUrl);
+                } catch (Exception e) {
+                    System.out.println("error serializing");
+                }
             }
         }
     }
