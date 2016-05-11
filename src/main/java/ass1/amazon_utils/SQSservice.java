@@ -89,7 +89,6 @@ public class SQSservice {
 		// Receive messages
 		List<Message> messages = null;
 		try {
-			System.out.println("Receiving messages from" + queueName + ".\n");
 			ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(
 					myQueueUrl).withMaxNumberOfMessages(10);
 			messages = this.sqsClient.receiveMessage(receiveMessageRequest)

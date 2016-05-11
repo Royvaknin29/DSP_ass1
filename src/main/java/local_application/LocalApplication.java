@@ -40,6 +40,7 @@ public class LocalApplication {
 			this.EC2Factory.launchEC2Instance(Ec2InstanceType.MANAGER);
 		}
 		this.s3Handler.createBucket();
+		//TODO: change the Upload key to input file name and send it to the manager.
 		String inputLocation = this.s3Handler.uploadFile(inputVars[0], "Tweets");
 		System.out.println("Input file uploaded to:\n" + inputLocation);
 //		String inputLocation = "https://s3.amazonaws.com/ass-1-bucket-roy-aaron/Tweets";
