@@ -3,3 +3,6 @@
 Ass_1.iml
 imports
 target
+classes
+src/main/java-manifest
+src/main/java/META-INF

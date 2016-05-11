@@ -1,8 +1,9 @@
 package ec2_instances;
 import java.io.IOException;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 
+import com.amazonaws.services.sqs.model.CreateQueueRequest;
+import com.amazonaws.services.sqs.model.GetQueueAttributesRequest;
 import local_application.TweetAnalysisOutput;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -43,14 +44,16 @@ public class Worker {
     	AmazonSQSClient sqsClient = new AmazonSQSClient(credentials);
 		String managerToWorkerUrl = sqsClient.getQueueUrl(jobsQueue).getQueueUrl();
 		String workerToManagerUrl = sqsClient.getQueueUrl(resultsQueue).getQueueUrl();
-		List<String> jobsFromQueue  = getJobsFromQueue(mySqsService, managerToWorkerUrl);
-        List<TweetAnalysisOutput> resultAfterAnalysis = preformTweetAnalysis(jobsFromQueue);
-        ObjectMapper mapper = new ObjectMapper();
-        try {
-            String jsonInString = mapper.writeValueAsString(resultAfterAnalysis);
-            addMessagesToQueue(jsonInString, mySqsService, workerToManagerUrl);
-        } catch (Exception e) {
-            System.out.println("error serializing");
+        while (!isQueueEmpty(sqsClient, managerToWorkerUrl)) {
+            List<String> jobsFromQueue  = getJobsFromQueue(mySqsService, managerToWorkerUrl);
+            List<TweetAnalysisOutput> resultAfterAnalysis = preformTweetAnalysis(jobsFromQueue);
+            ObjectMapper mapper = new ObjectMapper();
+            try {
+                String jsonInString = mapper.writeValueAsString(resultAfterAnalysis);
+                addMessagesToQueue(jsonInString, mySqsService, workerToManagerUrl);
+            } catch (Exception e) {
+                System.out.println("error serializing");
+            }
         }
     }
 
@@ -81,6 +84,15 @@ public class Worker {
     		System.out.println("job Id" + jobMessageToDelete.getMessageId() + "\nDeleted!");
     	}
     	return messagesContents;
+    }
+
+    public static boolean isQueueEmpty(AmazonSQSClient sqsClient, String queueUrl) {
+        Set<String> attrs = new HashSet<String>();
+        attrs.add("ApproximateNumberOfMessages");
+//        CreateQueueRequest createQueueRequest = new CreateQueueRequest().withQueueName(jobsQueue);
+        GetQueueAttributesRequest a = new GetQueueAttributesRequest().withQueueUrl(queueUrl).withAttributeNames(attrs);
+        Map<String,String> result = sqsClient.getQueueAttributes(a).getAttributes();
+        return Integer.parseInt(result.get("ApproximateNumberOfMessages")) > 0;
     }
 
     public static void addMessagesToQueue(String messageToAdd, SQSservice sqsService, String resultsQueueUrl) {
