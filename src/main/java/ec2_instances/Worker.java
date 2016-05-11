@@ -142,7 +142,9 @@ public class Worker {
                 // this is the NER label of the token
                 String ne = token.get(NamedEntityTagAnnotation.class);
 //                System.out.println("\t-" + word + ":" + ne);
-                entities.add(word + ":" + ne);
+                if (!ne.equals("O")) {
+                    entities.add(word + ":" + ne);
+                }
             }
         }
         return entities;
